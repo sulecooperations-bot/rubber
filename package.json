@@ -1,0 +1,53 @@
+{
+  "name": "rubber-plantation-management-system",
+  "version": "1.0.0",
+  "description": "Full-Stack Rubber Plantation Management System for Sri Lankan estates",
+  "private": true,
+  "scripts": {
+    "install:all": "npm run install:backend && npm run install:frontend",
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:frontend",
+    "build:frontend": "cd frontend && npm run build",
+    "start": "npm run start:backend",
+    "start:backend": "cd backend && npm start",
+    "seed": "cd backend && npm run seed",
+    "migrate": "cd backend && node scripts/migrate.js",
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd backend && echo \"Backend linting not configured\"",
+    "lint:frontend": "cd frontend && npm run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "rubber",
+    "plantation",
+    "management",
+    "sri-lanka",
+    "geospatial",
+    "agriculture",
+    "react",
+    "nodejs",
+    "postgresql",
+    "leaflet"
+  ],
+  "author": "SPATIO SDS",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spatiosds/rubber-plantation-system.git"
+  },
+  "bugs": {
+    "url": "https://github.com/spatiosds/rubber-plantation-system/issues"
+  },
+  "homepage": "https://spatiosds.lk"
+}
+
+
+
+
