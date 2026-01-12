@@ -10,8 +10,20 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
-  }
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'chart-vendor': ['recharts'],
+          'map-vendor': ['leaflet', 'react-leaflet']
+        }
+      }
+    }
+  },
+  // Vite automatically copies files from public/ to dist/
+  // So _redirects in public/ will be copied automatically
+  publicDir: 'public'
 })
 
 

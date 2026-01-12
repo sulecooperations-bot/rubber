@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { ToastProvider } from './contexts/ToastContext'
 import Layout from './components/Layout'
+import ConnectionStatus from './components/ConnectionStatus'
 import Dashboard from './pages/Dashboard'
 import MapView from './pages/MapView'
 import Workers from './pages/Workers'
@@ -31,6 +32,7 @@ function App() {
                 <Route path="/reports" element={<Reports />} />
               </Routes>
             </Layout>
+            <ConnectionStatus />
           </motion.div>
         </Router>
       </ToastProvider>

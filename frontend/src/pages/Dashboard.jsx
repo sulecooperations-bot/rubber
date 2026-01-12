@@ -62,12 +62,28 @@ const Dashboard = () => {
   }
 
   if (error) {
+    const isNetworkError = error.includes('Cannot connect') || error.includes('Network error') || error.includes('Backend API')
+    
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h3 className="text-lg font-semibold text-neutral-900 mb-2">Error Loading Dashboard</h3>
-          <p className="text-neutral-600 mb-4">{error}</p>
+          <h3 className="text-lg font-semibold text-neutral-900 dark:text-dark-100 mb-2">
+            {isNetworkError ? 'Backend API Not Connected' : 'Error Loading Dashboard'}
+          </h3>
+          <p className="text-neutral-600 dark:text-dark-400 mb-4">{error}</p>
+          
+          {isNetworkError && (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4 text-left">
+              <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">Configuration Required:</h4>
+              <ol className="list-decimal list-inside space-y-1 text-sm text-yellow-700 dark:text-yellow-300">
+                <li>Go to Netlify Dashboard → Site settings → Environment variables</li>
+                <li>Add: <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">VITE_API_URL</code> = <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">https://your-railway-backend.up.railway.app/api</code></li>
+                <li>Redeploy the site</li>
+              </ol>
+            </div>
+          )}
+          
           <button 
             onClick={fetchDashboardData}
             className="btn-primary"

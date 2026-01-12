@@ -4,9 +4,11 @@ import axios from 'axios'
 const getApiBaseUrl = () => {
   // If VITE_API_URL is set, use it (production on Netlify/Railway)
   if (import.meta.env.VITE_API_URL) {
-    const url = import.meta.env.VITE_API_URL
+    const url = import.meta.env.VITE_API_URL.trim()
     // Ensure it ends with /api if not already
-    return url.endsWith('/api') ? url : url.endsWith('/') ? `${url}api` : `${url}/api`
+    const apiUrl = url.endsWith('/api') ? url : url.endsWith('/') ? `${url}api` : `${url}/api`
+    console.log('[API] Using VITE_API_URL:', apiUrl)
+    return apiUrl
   }
   
   // For local development, detect the port
@@ -14,17 +16,25 @@ const getApiBaseUrl = () => {
     const currentPort = window.location.port
     if (currentPort) {
       const baseUrl = window.location.origin.replace(`:${currentPort}`, ':5000')
-      return `${baseUrl}/api`
+      const apiUrl = `${baseUrl}/api`
+      console.log('[API] Using localhost:', apiUrl)
+      return apiUrl
     }
     // If no port, assume default
-    return 'http://localhost:5000/api'
+    const apiUrl = 'http://localhost:5000/api'
+    console.log('[API] Using default localhost:', apiUrl)
+    return apiUrl
   }
   
-  // Fallback for production - use relative path
+  // Production fallback - show warning if no API URL is configured
+  console.warn('[API] ⚠️ VITE_API_URL not set! API calls will fail. Please configure VITE_API_URL in Netlify environment variables.')
+  console.warn('[API] Current hostname:', window.location.hostname)
+  // Still return relative path as fallback, but it likely won't work
   return '/api'
 }
 
 const API_BASE_URL = getApiBaseUrl()
+console.log('[API] Base URL configured:', API_BASE_URL)
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -49,17 +59,39 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
-    console.log(`API Response: ${response.status} ${response.config.url}`)
+    console.log(`✅ API Response: ${response.status} ${response.config.url}`)
     return response
   },
   (error) => {
-    console.error('API Response Error:', error.response?.data || error.message)
+    const requestUrl = error.config?.url || 'unknown'
+    const fullUrl = error.config?.baseURL + requestUrl
     
-    // Handle network errors
+    // Handle network errors (CORS, connection refused, etc.)
     if (!error.response) {
-      error.message = 'Network error. Please check your connection.'
+      if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+        console.error('❌ Network Error:', {
+          url: fullUrl,
+          message: 'Cannot connect to backend API',
+          suggestion: 'Check if VITE_API_URL is configured correctly in Netlify'
+        })
+        error.message = `Cannot connect to backend API. Please check your configuration.`
+        error.userMessage = `Backend API is not accessible. Please ensure VITE_API_URL is set in Netlify environment variables pointing to your Railway backend URL.`
+      } else {
+        console.error('❌ API Request Failed:', {
+          url: fullUrl,
+          error: error.message,
+          code: error.code
+        })
+        error.message = error.message || 'Network error. Please check your connection.'
+      }
     } else {
-      // Handle specific HTTP status codes
+      // Handle HTTP response errors
+      console.error(`❌ API Error ${error.response.status}:`, {
+        url: fullUrl,
+        status: error.response.status,
+        data: error.response.data
+      })
+      
       switch (error.response.status) {
         case 400:
           error.message = error.response.data?.error || 'Invalid request'
