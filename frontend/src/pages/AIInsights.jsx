@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Brain, TrendingUp, AlertTriangle, CheckCircle, Calculator, BarChart3 } from 'lucide-react'
 import { predictionsAPI, blocksAPI } from '../services/api'
+import { useToast } from '../contexts/ToastContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Button from '../components/Button'
 
@@ -19,6 +20,7 @@ const AIInsights = () => {
   })
   const [predictionResult, setPredictionResult] = useState(null)
   const [isPredicting, setIsPredicting] = useState(false)
+  const { showSuccess, showError } = useToast()
 
   useEffect(() => {
     fetchData()
@@ -31,10 +33,11 @@ const AIInsights = () => {
         blocksAPI.getAll(),
         predictionsAPI.getAll()
       ])
-      setBlocks(blocksResponse.data)
-      setPredictions(predictionsResponse.data.predictions)
+      setBlocks(blocksResponse.data || [])
+      setPredictions(predictionsResponse.data?.predictions || predictionsResponse.data || [])
     } catch (error) {
       console.error('Error fetching data:', error)
+      showError('Failed to load AI insights data')
     } finally {
       setLoading(false)
     }
@@ -45,12 +48,23 @@ const AIInsights = () => {
   }
 
   const generatePrediction = async () => {
+    if (!predictionForm.blockId || !predictionForm.ndvi || !predictionForm.rainfall || 
+        !predictionForm.temperature || !predictionForm.soilMoisture || !predictionForm.treeAge) {
+      showError('Please fill in all fields')
+      return
+    }
+
     try {
       setIsPredicting(true)
       const response = await predictionsAPI.predictYield(predictionForm)
       setPredictionResult(response.data)
+      showSuccess('Yield prediction generated successfully')
+      // Refresh predictions list
+      const predictionsResponse = await predictionsAPI.getAll()
+      setPredictions(predictionsResponse.data?.predictions || predictionsResponse.data || [])
     } catch (error) {
       console.error('Error generating prediction:', error)
+      showError(error.message || 'Failed to generate prediction')
     } finally {
       setIsPredicting(false)
     }
@@ -329,7 +343,14 @@ const AIInsights = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
-              {predictions.slice(0, 10).map((prediction, index) => (
+              {predictions.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-8 text-center text-neutral-500">
+                    No predictions found. Generate a prediction to see results here.
+                  </td>
+                </tr>
+              ) : (
+                predictions.slice(0, 10).map((prediction, index) => (
                 <motion.tr
                   key={prediction.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -367,7 +388,8 @@ const AIInsights = () => {
                     </div>
                   </td>
                 </motion.tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -377,6 +399,7 @@ const AIInsights = () => {
 }
 
 export default AIInsights
+
 
 
 

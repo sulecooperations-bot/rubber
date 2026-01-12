@@ -2,19 +2,25 @@ import axios from 'axios'
 
 // Auto-detect API URL based on environment
 const getApiBaseUrl = () => {
-  // If VITE_API_URL is set, use it (production on Netlify)
+  // If VITE_API_URL is set, use it (production on Netlify/Railway)
   if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL
+    const url = import.meta.env.VITE_API_URL
+    // Ensure it ends with /api if not already
+    return url.endsWith('/api') ? url : url.endsWith('/') ? `${url}api` : `${url}/api`
   }
   
   // For local development, detect the port
-  const currentPort = window.location.port
-  if (currentPort && window.location.hostname === 'localhost') {
-    const baseUrl = window.location.origin.replace(currentPort, '5000')
-    return `${baseUrl}/api`
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    const currentPort = window.location.port
+    if (currentPort) {
+      const baseUrl = window.location.origin.replace(`:${currentPort}`, ':5000')
+      return `${baseUrl}/api`
+    }
+    // If no port, assume default
+    return 'http://localhost:5000/api'
   }
   
-  // Fallback for production
+  // Fallback for production - use relative path
   return '/api'
 }
 
@@ -48,6 +54,33 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API Response Error:', error.response?.data || error.message)
+    
+    // Handle network errors
+    if (!error.response) {
+      error.message = 'Network error. Please check your connection.'
+    } else {
+      // Handle specific HTTP status codes
+      switch (error.response.status) {
+        case 400:
+          error.message = error.response.data?.error || 'Invalid request'
+          break
+        case 401:
+          error.message = 'Unauthorized. Please login again.'
+          break
+        case 403:
+          error.message = 'Access forbidden'
+          break
+        case 404:
+          error.message = error.response.data?.error || 'Resource not found'
+          break
+        case 500:
+          error.message = 'Server error. Please try again later.'
+          break
+        default:
+          error.message = error.response.data?.error || error.message || 'An error occurred'
+      }
+    }
+    
     return Promise.reject(error)
   }
 )

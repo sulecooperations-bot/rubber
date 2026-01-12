@@ -1,35 +1,64 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Users, Plus, Edit, Trash2, Phone, MapPin, TrendingUp } from 'lucide-react'
-import { workersAPI } from '../services/api'
+import { workersAPI, blocksAPI } from '../services/api'
+import { useToast } from '../contexts/ToastContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
 
 const Workers = () => {
   const [workers, setWorkers] = useState([])
+  const [blocks, setBlocks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingWorker, setEditingWorker] = useState(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    contactNumber: '',
+    assignedBlockId: '',
+    joinDate: new Date().toISOString().split('T')[0],
+    isActive: true
+  })
+  const { showSuccess, showError } = useToast()
 
   useEffect(() => {
     fetchWorkers()
+    fetchBlocks()
   }, [])
 
   const fetchWorkers = async () => {
     try {
       setLoading(true)
       const response = await workersAPI.getAll()
-      setWorkers(response.data)
+      setWorkers(response.data || [])
     } catch (error) {
       console.error('Error fetching workers:', error)
+      showError('Failed to load workers. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
+  const fetchBlocks = async () => {
+    try {
+      const response = await blocksAPI.getAll()
+      setBlocks(response.data || [])
+    } catch (error) {
+      console.error('Error fetching blocks:', error)
+    }
+  }
+
   const handleEdit = (worker) => {
     setEditingWorker(worker)
+    setFormData({
+      name: worker.name || '',
+      contactNumber: worker.contactNumber || '',
+      assignedBlockId: worker.assignedBlockId || '',
+      joinDate: worker.joinDate ? worker.joinDate.split('T')[0] : new Date().toISOString().split('T')[0],
+      isActive: worker.isActive ?? true
+    })
     setShowModal(true)
   }
 
@@ -37,11 +66,64 @@ const Workers = () => {
     if (window.confirm('Are you sure you want to delete this worker?')) {
       try {
         await workersAPI.delete(workerId)
+        showSuccess('Worker deleted successfully')
         fetchWorkers()
       } catch (error) {
         console.error('Error deleting worker:', error)
+        showError(error.response?.data?.error || 'Failed to delete worker')
       }
     }
+  }
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    
+    if (!formData.name.trim()) {
+      showError('Name is required')
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      if (editingWorker) {
+        await workersAPI.update(editingWorker.id, formData)
+        showSuccess('Worker updated successfully')
+      } else {
+        await workersAPI.create(formData)
+        showSuccess('Worker added successfully')
+      }
+      setShowModal(false)
+      setEditingWorker(null)
+      setFormData({
+        name: '',
+        contactNumber: '',
+        assignedBlockId: '',
+        joinDate: new Date().toISOString().split('T')[0],
+        isActive: true
+      })
+      fetchWorkers()
+    } catch (error) {
+      console.error('Error saving worker:', error)
+      showError(error.response?.data?.error || 'Failed to save worker')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCloseModal = () => {
+    setShowModal(false)
+    setEditingWorker(null)
+    setFormData({
+      name: '',
+      contactNumber: '',
+      assignedBlockId: '',
+      joinDate: new Date().toISOString().split('T')[0],
+      isActive: true
+    })
   }
 
   if (loading) {
@@ -158,26 +240,42 @@ const Workers = () => {
         ))}
       </motion.div>
 
+      {/* Empty State */}
+      {!loading && workers.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card text-center py-12"
+        >
+          <Users className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-neutral-900 mb-2">No Workers Found</h3>
+          <p className="text-neutral-600 mb-4">Get started by adding your first worker</p>
+          <Button onClick={() => setShowModal(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Worker
+          </Button>
+        </motion.div>
+      )}
+
       {/* Add/Edit Worker Modal */}
       <Modal
         isOpen={showModal}
-        onClose={() => {
-          setShowModal(false)
-          setEditingWorker(null)
-        }}
+        onClose={handleCloseModal}
         title={editingWorker ? 'Edit Worker' : 'Add New Worker'}
         size="md"
       >
-        <form className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Full Name
+              Full Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               className="input-field"
-              defaultValue={editingWorker?.name || ''}
+              value={formData.name}
+              onChange={(e) => handleInputChange('name', e.target.value)}
               placeholder="Enter worker's full name"
+              required
             />
           </div>
 
@@ -188,7 +286,8 @@ const Workers = () => {
             <input
               type="tel"
               className="input-field"
-              defaultValue={editingWorker?.contactNumber || ''}
+              value={formData.contactNumber}
+              onChange={(e) => handleInputChange('contactNumber', e.target.value)}
               placeholder="+94 77 123 4567"
             />
           </div>
@@ -197,11 +296,17 @@ const Workers = () => {
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               Assigned Block
             </label>
-            <select className="select-field">
+            <select
+              className="select-field"
+              value={formData.assignedBlockId}
+              onChange={(e) => handleInputChange('assignedBlockId', e.target.value)}
+            >
               <option value="">Select a block</option>
-              <option value="1">Block A - Malwatta Estate</option>
-              <option value="2">Block B - Malwatta Estate</option>
-              <option value="3">Block C - Horana Estate</option>
+              {blocks.map((block) => (
+                <option key={block.id} value={block.id}>
+                  {block.name} - {block.estate?.name || 'Unknown Estate'}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -212,7 +317,8 @@ const Workers = () => {
             <input
               type="date"
               className="input-field"
-              defaultValue={editingWorker?.joinDate?.split('T')[0] || ''}
+              value={formData.joinDate}
+              onChange={(e) => handleInputChange('joinDate', e.target.value)}
             />
           </div>
 
@@ -221,7 +327,8 @@ const Workers = () => {
               type="checkbox"
               id="isActive"
               className="w-4 h-4 text-primary-600 border-neutral-300 rounded focus:ring-primary-500"
-              defaultChecked={editingWorker?.isActive ?? true}
+              checked={formData.isActive}
+              onChange={(e) => handleInputChange('isActive', e.target.checked)}
             />
             <label htmlFor="isActive" className="text-sm text-neutral-700">
               Active worker
@@ -230,15 +337,14 @@ const Workers = () => {
 
           <div className="flex justify-end space-x-3 pt-4">
             <Button
+              type="button"
               variant="outline"
-              onClick={() => {
-                setShowModal(false)
-                setEditingWorker(null)
-              }}
+              onClick={handleCloseModal}
+              disabled={submitting}
             >
               Cancel
             </Button>
-            <Button>
+            <Button type="submit" loading={submitting}>
               {editingWorker ? 'Update Worker' : 'Add Worker'}
             </Button>
           </div>
@@ -249,6 +355,7 @@ const Workers = () => {
 }
 
 export default Workers
+
 
 
 

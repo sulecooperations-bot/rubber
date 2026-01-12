@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ClipboardList, Plus, Filter, Download, Calendar, User, MapPin } from 'lucide-react'
-import { tappingAPI } from '../services/api'
+import { ClipboardList, Plus, Filter, Download, Calendar, User, MapPin, Edit, Trash2 } from 'lucide-react'
+import { tappingAPI, workersAPI, blocksAPI } from '../services/api'
+import { useToast } from '../contexts/ToastContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
@@ -10,27 +11,45 @@ import TappingAnalytics from '../components/TappingAnalytics'
 const TappingRecords = () => {
   const [records, setRecords] = useState([])
   const [analytics, setAnalytics] = useState(null)
+  const [workers, setWorkers] = useState([])
+  const [blocks, setBlocks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [editingRecord, setEditingRecord] = useState(null)
   const [filters, setFilters] = useState({
     startDate: '',
     endDate: '',
     workerId: '',
     blockId: ''
   })
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    workerId: '',
+    blockId: '',
+    latexYield: '',
+    quality: '',
+    weatherCondition: '',
+    tappingTime: '',
+    notes: ''
+  })
+  const { showSuccess, showError } = useToast()
 
   useEffect(() => {
     fetchRecords()
     fetchAnalytics()
+    fetchWorkers()
+    fetchBlocks()
   }, [])
 
   const fetchRecords = async () => {
     try {
       setLoading(true)
       const response = await tappingAPI.getAll(filters)
-      setRecords(response.data.records)
+      setRecords(response.data?.records || response.data || [])
     } catch (error) {
       console.error('Error fetching tapping records:', error)
+      showError('Failed to load tapping records')
     } finally {
       setLoading(false)
     }
@@ -45,6 +64,24 @@ const TappingRecords = () => {
     }
   }
 
+  const fetchWorkers = async () => {
+    try {
+      const response = await workersAPI.getAll()
+      setWorkers(response.data || [])
+    } catch (error) {
+      console.error('Error fetching workers:', error)
+    }
+  }
+
+  const fetchBlocks = async () => {
+    try {
+      const response = await blocksAPI.getAll()
+      setBlocks(response.data || [])
+    } catch (error) {
+      console.error('Error fetching blocks:', error)
+    }
+  }
+
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }))
   }
@@ -52,6 +89,93 @@ const TappingRecords = () => {
   const applyFilters = () => {
     fetchRecords()
     fetchAnalytics()
+  }
+
+  const handleEdit = (record) => {
+    setEditingRecord(record)
+    setFormData({
+      date: record.date ? record.date.split('T')[0] : new Date().toISOString().split('T')[0],
+      workerId: record.workerId || '',
+      blockId: record.blockId || '',
+      latexYield: record.latexYield || '',
+      quality: record.quality || '',
+      weatherCondition: record.weatherCondition || '',
+      tappingTime: record.tappingTime || '',
+      notes: record.notes || ''
+    })
+    setShowModal(true)
+  }
+
+  const handleDelete = async (recordId) => {
+    if (window.confirm('Are you sure you want to delete this tapping record?')) {
+      try {
+        await tappingAPI.delete(recordId)
+        showSuccess('Tapping record deleted successfully')
+        fetchRecords()
+        fetchAnalytics()
+      } catch (error) {
+        console.error('Error deleting record:', error)
+        showError(error.response?.data?.error || 'Failed to delete record')
+      }
+    }
+  }
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    
+    if (!formData.workerId || !formData.blockId || !formData.date || !formData.latexYield || !formData.quality) {
+      showError('Please fill in all required fields')
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      if (editingRecord) {
+        await tappingAPI.update(editingRecord.id, formData)
+        showSuccess('Tapping record updated successfully')
+      } else {
+        await tappingAPI.create(formData)
+        showSuccess('Tapping record added successfully')
+      }
+      setShowModal(false)
+      setEditingRecord(null)
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        workerId: '',
+        blockId: '',
+        latexYield: '',
+        quality: '',
+        weatherCondition: '',
+        tappingTime: '',
+        notes: ''
+      })
+      fetchRecords()
+      fetchAnalytics()
+    } catch (error) {
+      console.error('Error saving record:', error)
+      showError(error.response?.data?.error || 'Failed to save tapping record')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCloseModal = () => {
+    setShowModal(false)
+    setEditingRecord(null)
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      workerId: '',
+      blockId: '',
+      latexYield: '',
+      quality: '',
+      weatherCondition: '',
+      tappingTime: '',
+      notes: ''
+    })
   }
 
   const formatDate = (dateString) => {
@@ -155,9 +279,29 @@ const TappingRecords = () => {
               onChange={(e) => handleFilterChange('workerId', e.target.value)}
             >
               <option value="">All Workers</option>
-              <option value="1">Suresh Jayasinghe</option>
-              <option value="2">Nimal Perera</option>
-              <option value="3">Thilini Rajapaksha</option>
+              {workers.map((worker) => (
+                <option key={worker.id} value={worker.id}>
+                  {worker.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Block
+            </label>
+            <select
+              className="select-field"
+              value={filters.blockId}
+              onChange={(e) => handleFilterChange('blockId', e.target.value)}
+            >
+              <option value="">All Blocks</option>
+              {blocks.map((block) => (
+                <option key={block.id} value={block.id}>
+                  {block.name} - {block.estate?.name || 'Unknown Estate'}
+                </option>
+              ))}
             </select>
           </div>
           
@@ -270,11 +414,19 @@ const TappingRecords = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center space-x-2">
-                      <button className="text-primary-600 hover:text-primary-900">
-                        Edit
+                      <button
+                        onClick={() => handleEdit(record)}
+                        className="text-primary-600 hover:text-primary-900 flex items-center space-x-1"
+                      >
+                        <Edit className="w-4 h-4" />
+                        <span>Edit</span>
                       </button>
-                      <button className="text-red-600 hover:text-red-900">
-                        Delete
+                      <button
+                        onClick={() => handleDelete(record.id)}
+                        className="text-red-600 hover:text-red-900 flex items-center space-x-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete</span>
                       </button>
                     </div>
                   </td>
@@ -285,67 +437,104 @@ const TappingRecords = () => {
         </div>
       </motion.div>
 
-      {/* Add Record Modal */}
+      {/* Empty State */}
+      {!loading && records.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card text-center py-12"
+        >
+          <ClipboardList className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-neutral-900 mb-2">No Tapping Records Found</h3>
+          <p className="text-neutral-600 mb-4">Get started by adding your first tapping record</p>
+          <Button onClick={() => setShowModal(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Record
+          </Button>
+        </motion.div>
+      )}
+
+      {/* Add/Edit Record Modal */}
       <Modal
         isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title="Add Tapping Record"
+        onClose={handleCloseModal}
+        title={editingRecord ? 'Edit Tapping Record' : 'Add Tapping Record'}
         size="md"
       >
-        <form className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Date
+                Date <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
                 className="input-field"
-                defaultValue={new Date().toISOString().split('T')[0]}
+                value={formData.date}
+                onChange={(e) => handleInputChange('date', e.target.value)}
+                required
               />
             </div>
             
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Worker
+                Worker <span className="text-red-500">*</span>
               </label>
-              <select className="select-field">
+              <select
+                className="select-field"
+                value={formData.workerId}
+                onChange={(e) => handleInputChange('workerId', e.target.value)}
+                required
+              >
                 <option value="">Select worker</option>
-                <option value="1">Suresh Jayasinghe</option>
-                <option value="2">Nimal Perera</option>
-                <option value="3">Thilini Rajapaksha</option>
+                {workers.map((worker) => (
+                  <option key={worker.id} value={worker.id}>
+                    {worker.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Block
+              Block <span className="text-red-500">*</span>
             </label>
-            <select className="select-field">
+            <select
+              className="select-field"
+              value={formData.blockId}
+              onChange={(e) => handleInputChange('blockId', e.target.value)}
+              required
+            >
               <option value="">Select block</option>
-              <option value="1">Block A - Malwatta Estate</option>
-              <option value="2">Block B - Malwatta Estate</option>
-              <option value="3">Block C - Horana Estate</option>
+              {blocks.map((block) => (
+                <option key={block.id} value={block.id}>
+                  {block.name} - {block.estate?.name || 'Unknown Estate'}
+                </option>
+              ))}
             </select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Yield (kg)
+                Yield (kg) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
                 step="0.1"
+                min="0"
                 className="input-field"
+                value={formData.latexYield}
+                onChange={(e) => handleInputChange('latexYield', e.target.value)}
                 placeholder="25.5"
+                required
               />
             </div>
             
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Quality (%)
+                Quality (%) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -353,7 +542,10 @@ const TappingRecords = () => {
                 min="0"
                 max="100"
                 className="input-field"
+                value={formData.quality}
+                onChange={(e) => handleInputChange('quality', e.target.value)}
                 placeholder="85.5"
+                required
               />
             </div>
           </div>
@@ -362,7 +554,11 @@ const TappingRecords = () => {
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               Weather Condition
             </label>
-            <select className="select-field">
+            <select
+              className="select-field"
+              value={formData.weatherCondition}
+              onChange={(e) => handleInputChange('weatherCondition', e.target.value)}
+            >
               <option value="">Select weather</option>
               <option value="Sunny">Sunny</option>
               <option value="Cloudy">Cloudy</option>
@@ -371,15 +567,42 @@ const TappingRecords = () => {
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Tapping Time
+            </label>
+            <input
+              type="time"
+              className="input-field"
+              value={formData.tappingTime}
+              onChange={(e) => handleInputChange('tappingTime', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Notes
+            </label>
+            <textarea
+              className="input-field"
+              rows="3"
+              value={formData.notes}
+              onChange={(e) => handleInputChange('notes', e.target.value)}
+              placeholder="Additional notes..."
+            />
+          </div>
+
           <div className="flex justify-end space-x-3 pt-4">
             <Button
+              type="button"
               variant="outline"
-              onClick={() => setShowModal(false)}
+              onClick={handleCloseModal}
+              disabled={submitting}
             >
               Cancel
             </Button>
-            <Button>
-              Add Record
+            <Button type="submit" loading={submitting}>
+              {editingRecord ? 'Update Record' : 'Add Record'}
             </Button>
           </div>
         </form>
@@ -389,6 +612,7 @@ const TappingRecords = () => {
 }
 
 export default TappingRecords
+
 
 
 

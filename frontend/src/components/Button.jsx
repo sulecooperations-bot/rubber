@@ -7,6 +7,7 @@ const Button = ({
   disabled = false, 
   loading = false,
   onClick,
+  type = 'button',
   className = '',
   ...props 
 }) => {
@@ -36,6 +37,7 @@ const Button = ({
       className={classes}
       disabled={disabled || loading}
       onClick={onClick}
+      type={type}
       {...props}
     >
       {loading ? (

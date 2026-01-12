@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { FileText, Download, Calendar, BarChart3, MapPin, Users, TrendingUp } from 'lucide-react'
 import { dashboardAPI, blocksAPI, workersAPI, tappingAPI } from '../services/api'
+import { useToast } from '../contexts/ToastContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Button from '../components/Button'
 
 const Reports = () => {
   const [loading, setLoading] = useState(false)
   const [reportData, setReportData] = useState(null)
+  const { showSuccess, showError } = useToast()
 
   const generateReport = async () => {
     try {
@@ -33,9 +35,11 @@ const Reports = () => {
       
       // Generate PDF (mock implementation)
       generatePDF(reportData)
+      showSuccess('Report generated successfully')
       
     } catch (error) {
       console.error('Error generating report:', error)
+      showError(error.message || 'Failed to generate report')
     } finally {
       setLoading(false)
     }
@@ -272,6 +276,7 @@ const Reports = () => {
 }
 
 export default Reports
+
 
 
 

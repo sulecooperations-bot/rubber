@@ -1,5 +1,6 @@
 const express = require('express');
 const { YieldPrediction, Block, Estate } = require('../models');
+const { Op } = require('sequelize');
 
 const router = express.Router();
 
@@ -201,6 +202,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
+
 
 
 

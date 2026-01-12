@@ -9,9 +9,11 @@ import {
   Cloud,
   CloudRain,
   Thermometer,
-  Droplets
+  Droplets,
+  AlertCircle
 } from 'lucide-react'
 import { dashboardAPI } from '../services/api'
+import { useToast } from '../contexts/ToastContext'
 import StatsCard from '../components/StatsCard'
 import LoadingSpinner from '../components/LoadingSpinner'
 import YieldTrendChart from '../components/charts/YieldTrendChart'
@@ -24,6 +26,7 @@ const Dashboard = () => {
   const [trends, setTrends] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const { showError } = useToast()
 
   useEffect(() => {
     fetchDashboardData()
@@ -32,6 +35,7 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
+      setError(null)
       const [statsResponse, trendsResponse] = await Promise.all([
         dashboardAPI.getStats(),
         dashboardAPI.getTrends()
@@ -41,7 +45,9 @@ const Dashboard = () => {
       setTrends(trendsResponse.data)
     } catch (err) {
       console.error('Error fetching dashboard data:', err)
-      setError('Failed to load dashboard data')
+      const errorMessage = err.message || 'Failed to load dashboard data'
+      setError(errorMessage)
+      showError(errorMessage)
     } finally {
       setLoading(false)
     }
